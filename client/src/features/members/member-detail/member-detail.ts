@@ -1,32 +1,49 @@
-import {Component, inject, OnInit} from '@angular/core';
-import {MemberService} from '../../../core/services/member-service';
-import {ActivatedRoute} from '@angular/router';
-import {Observable} from 'rxjs';
+import {Component, inject, OnInit, signal} from '@angular/core';
+import {ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet} from '@angular/router';
+import {filter} from 'rxjs';
 import {Member} from '../../../types/member';
-import {AsyncPipe} from '@angular/common';
+import {NotFound} from '../../../shared/errors/not-found/not-found';
+import {AgePipe} from '../../../core/pipes/age-pipe';
 
 @Component({
   selector: 'app-member-detail',
   imports: [
-    AsyncPipe
+    RouterLink,
+    RouterLinkActive,
+    NotFound,
+    RouterOutlet,
+    AgePipe
   ],
   templateUrl: './member-detail.html',
   styleUrl: './member-detail.css',
 })
 export class MemberDetail implements OnInit {
-  protected member$?: Observable<Member>;
-  private readonly memberService = inject(MemberService);
+  protected member = signal<Member | undefined>(undefined);
+  protected title = signal<string | undefined>('Profile');
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   ngOnInit() {
-    this.member$ = this.loadMember();
-  }
+    // We get member from the resolver based on the activated route
+    this.route.data.subscribe({
+      next: data => {
+        this.member.set(data['member']);
+      },
+      error: error => {
+        console.log(error);
+      }
+    })
+    this.title.set(this.route.firstChild?.snapshot.title);
 
-  loadMember() {
-    const id = this.route.snapshot.paramMap.get('id');
-    if (!id) {
-      return;
-    }
-    return this.memberService.getMember(id);
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd),
+    ).subscribe({
+      next: () => {
+        this.title.set(this.route.firstChild?.snapshot.title);
+      },
+      error: err => {
+        console.log(err);
+      }
+    })
   }
 }
